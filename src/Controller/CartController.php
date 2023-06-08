@@ -25,159 +25,135 @@ class CartController extends AbstractController
     }
 
 
-    // add item to cart
-
+    // Add item to cart
     /**
      * @Route("/cart", name="add_to_cart", methods={"POST"})
      */
-
     public function add(Request $request): JsonResponse
     {
-
         $decoded = json_decode($request->getContent());
 
-
-        //get user 
+        // Get user
         $user = $this->doctrine
             ->getRepository(User::class)
             ->find($decoded->user_id);
 
-        //create new cart object
-
+        // Create new cart object
         $cart = new Cart();
 
-        //set user to this cart item
-
+        // Set user to this cart item
         $cart->setUser($user);
 
-        //find product
-
+        // Find product
         $product = $this->doctrine
             ->getRepository(Product::class)
             ->find($decoded->product_id);
 
 
-        //verifie if this product hasn't associated to another user cart
+        // Associate this product to this cart
+        $cart->addProduct($product);
 
-        if ($product->getCart() != null)
-            if ($product->getCart()->getUser() != $user)
-                return $this->json('This product not in stock with id ' . $product->getId(), 202);
-            else
-                return $this->json('This product is already in your cart with id ' . $product->getId(), 203);
-
-
-
-        //associate this product to this cart
-
-        $product->setCart($cart);
-
-        //applied this in database
-
-        $this->doctrine->persist($cart, $product);
+        // Persist and flush changes to the database
+        $this->doctrine->persist($cart);
         $this->doctrine->flush();
 
         $data = [
             'name' => $product->getName(),
             'price' => $product->getPrice(),
-            'cart_id' => $product->getCart()->getId(),
-            'user' => $product->getCart()->getUser()->getName()
+            'cart_id' => $cart->getId(),
+            'user' => $user->getName()
         ];
 
-        //return this data as json
+        // Return this data as JSON
         return $this->json($data);
     }
 
-    //get user cart
-
+    // Get user cart
     /**
      * @Route("/cart/{id}", name="cart_user", methods={"GET"})
      */
-
     public function index(int $id): JsonResponse
     {
-
-        //get user 
+        // Get user
         $user = $this->doctrine
             ->getRepository(User::class)
             ->find($id);
 
-        //array to store data
+        // Array to store data
         $data = [];
 
-        //if user not exist
-        if (!$user)
+        // If user does not exist
+        if (!$user) {
             return $this->json('No user found for id ' . $id, 404);
+        }
 
-        //if cart is empty
-        if (count($user->getCarts()) == 0)
-            return $this->json('Cart empty for user with id = ' . $id, 202);
+        // If cart is empty
+        if ($user->getCarts()->count() === 0) {
+            return $this->json('Cart is empty for user with id = ' . $id, 202);
+        }
 
-
-        //get all products
+        // Get all products
         $products = $this->doctrine
             ->getRepository(Product::class)
             ->findAll();
 
-        //store items of cart
-        $items = [];
-
-        //add product to data if has same cart id with cart associated with user
-        foreach ($user->getCarts() as $cart) {
-            foreach ($products as $product) {
-                if ($product->getCart() === $cart) {
+        // Add products to data if they have the same cart associated with the user
+        foreach ($products as $product) {
+            foreach ($product->getCarts() as $cart) {
+                if ($cart->getUser() === $user) {
                     $data[] = [
                         "name" => $product->getName(),
                         "price" => $product->getPrice(),
-
                     ];
                 }
             }
         }
 
-        //return this data as json
+        // Return this data as JSON
         return $this->json($data);
     }
 
-    // delete item from cart
 
+     // Delete item from cart
     /**
      * @Route("/cart", name="delete_from_cart", methods={"DELETE"})
      */
-
     public function delete(Request $request): JsonResponse
     {
-
         $decoded = json_decode($request->getContent());
 
-        //find product by id
+        // Find product by id
         $product = $this->doctrine->getRepository(Product::class)->find($decoded->product_id);
 
-        //if product with id not found
-        if (!$product)
+        // If product with id is not found
+        if (!$product) {
             return $this->json('No Product found for id ' . $decoded->product_id, 404);
+        }
 
-        //if product not associate to any cart
-        if ($product->getCart() == null)
-            return $this->json('This Product not associate to any cart ' . $decoded->product_id, 405);
+        // If product is not associated with any cart
+        if ($product->getCarts()->count() === 0) {
+            return $this->json('This Product is not associated with any cart ' . $decoded->product_id, 405);
+        }
 
-        //if product associate to another user cart
+        // If product is associated with another user's cart
+        if ($product->getCarts()->first()->getUser()->getId() !== $decoded->user_id) {
+            return $this->json('This Product was not found in the cart of user id ' . $decoded->user_id, 406);
+        }
 
-        if ($product->getCart()->getUser()->getId() != $decoded->user_id)
-            return $this->json('This Product not found in cart of user id ' . $decoded->user_id, 406);
+        // Get the cart associated with the product
+        $cart = $product->getCarts()->first();
 
-        //get current cart id to remove it
-        $cart_id = $product->getCart()->getId();
+        // Remove the product from the cart
+        $cart->removeProduct($product);
 
-        //set cart null
-        $product->setCart(null);
+        // Delete the cart if it becomes empty
+        if ($cart->getProducts()->count() === 0) {
+            $this->doctrine->remove($cart);
+        }
 
-        //find cart by id
-        $cart = $this->doctrine->getRepository(Cart::class)->find($cart_id);
-
-        //delete object and row in database
-        $this->doctrine->remove($cart);
+        // Flush changes to the database
         $this->doctrine->flush();
 
-        return $this->json('Deleted a cart successfully with id ' . $cart_id, 200);
+        return $this->json('Deleted a cart successfully with id ' . $cart->getId(), 200);
     }
 }

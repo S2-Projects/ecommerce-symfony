@@ -5,8 +5,10 @@ namespace App\Controller;
 use App\Entity\Product;
 use App\Entity\Category;
 use App\Entity\User;
+use App\Service\FileUploader;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\Exception\BadRequestException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
@@ -18,10 +20,12 @@ use Symfony\Component\Routing\Annotation\Route;
 class ProductController extends AbstractController
 {
     private $doctrine;
+    private $fileUploader;
 
-    public function __construct(ManagerRegistry $doctrine)
+    public function __construct(ManagerRegistry $doctrine, FileUploader $fileUploader)
     {
         $this->doctrine = $doctrine;
+        $this->fileUploader = $fileUploader;
     }
 
     /**
@@ -39,7 +43,9 @@ class ProductController extends AbstractController
                 'name' => $product->getName(),
                 'price' => $product->getPrice(),
                 'description' => $product->getDescription(),
-                'image' => $product->getImage()
+                'image' => $product->getImage(),
+                'category' => $product->getCategory()->getName(),
+                'user' => $product->getUser()->getName()
             ];
         }
 
@@ -52,27 +58,31 @@ class ProductController extends AbstractController
     public function new(Request $request): JsonResponse
     {
         $entityManager = $this->doctrine->getManager();
-        $data = json_decode($request->getContent());
+        $uploadedFile = $request->files->get('image');
 
         $product = new Product();
-        $product->setName($data->name);
-        $product->setPrice($data->price);
-        $product->setDescription($data->description);
-        $product->setImage($data->image);
-        $category = $entityManager->getRepository(Category::class)->find($data->category_id);
+
+        $category = $entityManager->getRepository(Category::class)->find($request->get('category_id'));
         if (!$category) {
             return $this->json('Category not found', 404);
         }
         $product->setCategory($category);
 
-
-        $user = $entityManager->getRepository(User::class)->find($data->user_id);
+        $user = $entityManager->getRepository(User::class)->find($request->get('user_id'));
         if (!$user) {
             return $this->json('User not found', 404);
         }
         $product->setUser($user);
+        
+        
+        if (!$uploadedFile) {
+            throw new BadRequestException('"file" is required');
+        }
 
-
+        $product->setName($request->get('name'));
+        $product->setPrice(doubleval($request->get('price')));
+        $product->setDescription($request->get('description'));
+        $product->setImage($this->fileUploader->upload($uploadedFile));
 
         $entityManager->persist($product);
         $entityManager->flush();
@@ -96,7 +106,6 @@ class ProductController extends AbstractController
         $product->setName($data->name);
         $product->setPrice($data->price);
         $product->setDescription($data->description);
-        $product->setImage($data->image);
 
         $entityManager->flush();
 
@@ -105,11 +114,14 @@ class ProductController extends AbstractController
             'name' => $product->getName(),
             'price' => $product->getPrice(),
             'description' => $product->getDescription(),
-            'image' => $product->getImage()
+            'image' => $product->getImage(),
+            'category' => $product->getCategory()->getName(),
+            'user' => $product->getUser()->getName()
         ];
 
         return $this->json($updatedData, 201);
     }
+
 
     /**
      * @Route("/product/{id}", name="product_delete", methods={"DELETE"})
@@ -132,6 +144,8 @@ class ProductController extends AbstractController
 
         return $this->json('Deleted product with id ' . $id, 200);
     }
+
+
     /**
      * @Route("/product/{id}", name="product_show", methods={"GET"})
      */
@@ -142,13 +156,7 @@ class ProductController extends AbstractController
         if (!$product) {
             return $this->json('No product found for id ' . $id, 404);
         }
-        if ($product->getUser()) {
-            $user_id = $product->getUser()->getId();
-        }
 
-        if ($product->getCategory()) {
-            $category_id = $product->getCategory()->getId();
-        }
 
         $data = [
             'id' => $product->getId(),
@@ -156,8 +164,8 @@ class ProductController extends AbstractController
             'price' => $product->getPrice(),
             'description' => $product->getDescription(),
             'image' => $product->getImage(),
-            'user_id' => $user_id,
-            'category_id' => $category_id
+            'user' => $product->getUser()->getName(),
+            'category_id' => $product->getCategory()->getName()
         ];
 
         return $this->json($data);

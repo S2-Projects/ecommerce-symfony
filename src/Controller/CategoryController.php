@@ -27,7 +27,7 @@ class CategoryController extends AbstractController
     /**
      * @Route("/category", name="category_index", methods={"GET"})
      */
-    
+
     public function index(): JsonResponse
     {
 
@@ -141,7 +141,7 @@ class CategoryController extends AbstractController
 
         $data = [];
 
-        foreach ($categories as $category) {
+        foreach ($categories as $category) {  
             $categoryData = [
                 'id' => $category->getId(),
                 'name' => $category->getName(),
@@ -187,8 +187,4 @@ class CategoryController extends AbstractController
 
         return $this->json($data);
     }
-
 }
-
-// GET : /api/product/{id} (afficher produit avec id)
-// GET : /api/product/category?id={id} (afficher les produits d'un category)

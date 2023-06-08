@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Entity;
 
 use App\Repository\CartRepository;
@@ -15,13 +14,13 @@ class Cart
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\OneToMany(mappedBy: 'cart', targetEntity: Product::class)]
-    private Collection $products;
-
     #[ORM\ManyToOne(inversedBy: 'carts')]
     #[ORM\JoinColumn(nullable: false)]
     private ?User $user = null;
 
+    #[ORM\ManyToMany(targetEntity: Product::class, mappedBy: 'carts')]
+    #[ORM\JoinTable(name: 'item_cart')]
+    private Collection $products;
 
     public function __construct()
     {
@@ -31,6 +30,17 @@ class Cart
     public function getId(): ?int
     {
         return $this->id;
+    }
+
+    public function getUser(): ?User
+    {
+        return $this->user;
+    }
+
+    public function setUser(?User $user): self
+    {
+        $this->user = $user;
+        return $this;
     }
 
     /**
@@ -45,36 +55,16 @@ class Cart
     {
         if (!$this->products->contains($product)) {
             $this->products->add($product);
-            $product->setCart($this);
+            $product->addCart($this);
         }
-
         return $this;
     }
 
     public function removeProduct(Product $product): self
     {
         if ($this->products->removeElement($product)) {
-            // set the owning side to null (unless already changed)
-            if ($product->getCart() === $this) {
-                $product->setCart(null);
-            }
+            $product->removeCart($this);
         }
-
         return $this;
     }
-
-    public function getUser(): ?User
-    {
-        return $this->user;
-    }
-
-    public function setUser(?User $user): self
-    {
-        $this->user = $user;
-
-        return $this;
-    }
-
-
-
 }
