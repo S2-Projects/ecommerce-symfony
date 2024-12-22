@@ -12,16 +12,17 @@ security:
                 property: email
     firewalls:
         login:
-            pattern: ^/api/login
+            pattern: ^/api/v1/login
             stateless: true
             json_login:
-                check_path: /api/login_check
+                check_path: /api/v1/login_check
                 success_handler: lexik_jwt_authentication.handler.authentication_success
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
         api:
-            pattern: ^/api
+            pattern: ^/api/v1
             stateless: true
             jwt: ~
+
         dev:
             pattern: ^/(_(profiler|wdt)|css|images|js)/
             security: false
@@ -29,10 +30,20 @@ security:
             lazy: true
             provider: app_user_provider
     access_control:
-        - { path: ^/api/register, roles: PUBLIC_ACCESS }
-        - { path: ^/api/login, roles: PUBLIC_ACCESS }
-        - { path: ^/api/category, roles: PUBLIC_ACCESS, methods: [GET]}
-        - { path: ^/api/product, roles: PUBLIC_ACCESS, methods: [GET] }
-        - { path: ^/api/category, roles: ROLE_ADMIN, methods: [POST,PUT,DELETE]}
-        - { path: ^/api/product, roles: ROLE_ADMIN, methods: [POST,PUT,DELETE]}
-        - { path: ^/api, roles: IS_AUTHENTICATED_FULLY } 
+
+        # Public Access
+        - { path: ^/api/v1/register, roles: PUBLIC_ACCESS }
+        - { path: ^/api/v1/login, roles: PUBLIC_ACCESS }
+        - { path: ^/api/v1/category, roles: PUBLIC_ACCESS, methods: [GET] }
+        - { path: ^/api/v1/product, roles: PUBLIC_ACCESS, methods: [GET] }
+
+        # Admin Access for CRUD Operations
+        - { path: ^/api/v1/category, roles: ROLE_ADMIN, methods: [POST, PUT, DELETE] }
+        - { path: ^/api/v1/product, roles: ROLE_ADMIN, methods: [POST, PUT, DELETE] }
+
+        # Authenticated Access
+        - { path: ^/api/v1/user, roles: IS_AUTHENTICATED_FULLY }
+        - { path: ^/api/v1/order, roles: IS_AUTHENTICATED_FULLY }
+
+        # Catch-all rule for other authenticated routes
+        - { path: ^/api/v1, roles: IS_AUTHENTICATED_FULLY }
