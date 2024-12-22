@@ -1,4 +1,4 @@
-﻿#Hein
+﻿# Hein
 Build a REST API for a ecommerce website with Symfony 6 and MySQL
 
 # STEPS TO SETUP
